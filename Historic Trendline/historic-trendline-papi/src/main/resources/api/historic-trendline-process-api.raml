@@ -1,0 +1,27 @@
+#%RAML 1.0
+title: Historic Trendline Process API
+
+description: As a user, I can view a historic trendline of the number of batches.
+version: v1
+protocols: 
+- HTTP
+
+types:
+  trend: !include DataTypes/trendlineDataType.raml
+
+/trendline:
+  displayName: Batch Trendline
+  description: Reports the moving average of trendlines over time.
+  get:
+    queryParameters:
+      month:
+        required: false
+        type: integer
+    responses:
+      200:
+        description: "Success"
+        body:
+          application/json:
+            type: trend[]
+            examples:
+              output: !include Examples/trendlineExample.raml

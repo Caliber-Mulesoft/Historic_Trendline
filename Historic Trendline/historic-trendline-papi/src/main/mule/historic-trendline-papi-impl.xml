@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:os="http://www.mulesoft.org/schema/mule/os"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:training-mastersapi="http://www.mulesoft.org/schema/mule/training-mastersapi" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/training-mastersapi http://www.mulesoft.org/schema/mule/training-mastersapi/current/mule-training-mastersapi.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/os http://www.mulesoft.org/schema/mule/os/current/mule-os.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+	<flow name="StandardTrendline" doc:id="08a47c16-d921-41c9-b5ea-41004638fa1d" >
+		<db:select doc:name="Select" doc:id="6dca9148-bb23-49ab-9404-ef4680844146" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT(AVG(COUNT), YEAR-MONTH) FROM Trendline]]></db:sql>
+		</db:select>
+	</flow>
+	<flow name="database" doc:id="f1cb6dbf-3cf8-45b2-b5bd-abbc28c5eab8" >
+		<scheduler doc:name="Scheduler" doc:id="f52d650a-1eba-4ef0-b775-7b6dd2207164" >
+			<scheduling-strategy >
+				<fixed-frequency frequency="31" timeUnit="DAYS"/>
+			</scheduling-strategy>
+		</scheduler>
+		<os:retrieve doc:name="Retrieve" doc:id="8d7ab62c-5998-4e15-8e62-b85c0040e209" key="#[vars.LastUpdated]" objectStore="Date">
+			<os:default-value ><![CDATA[01/01/2021]]></os:default-value>
+		</os:retrieve>
+		<logger level="INFO" doc:name="Logger" doc:id="0d549bcf-82bf-4762-b40c-afedcb07e129" />
+		<choice doc:name="Choice" doc:id="5fed528a-4b62-415c-973b-e2c02db5a2af" >
+			<when expression="#[now&gt;vars.LastUpdated]">
+				<os:store doc:name="Store" doc:id="d3af7436-c16a-426a-82ca-a9a8472146e3" key="#[LastUpdated]" objectStore="Date">
+					<os:value ><![CDATA[#[now]]]></os:value>
+				</os:store>
+				<flow-ref doc:name="Flow Reference" doc:id="be7a207e-37a3-4e91-99dd-bcdb90e37f6d" name="Get-batches"/>
+				<db:insert doc:name="Insert" doc:id="6edd804b-9a83-453e-8f8c-87d90692a320" config-ref="Database_Config">
+					<db:sql ><![CDATA[INSERT INTO table (month_, year_ batchid) VALUES (:startMonth, :startYear, :batchID)]]></db:sql>
+					<db:input-parameters ><![CDATA[#[{
+	startYear: payload.startYear,
+	startMonth: payload.startMonth,
+	batchId: payload.batchId
+}]]]></db:input-parameters>
+				</db:insert>
+				<logger level="INFO" doc:name="Logger" doc:id="4f78beb1-ef30-4058-80b8-2b8dfb9ced54" />
+				<db:execute-script doc:name="Execute script" doc:id="f23a5702-14dc-43ad-be25-70567a17fc19" config-ref="Database_Config">
+					<db:sql ><![CDATA[insert into trend (year_, month_, batches)
+select (year_, month_, count(batchid)) from trendline group by (year_, month_)
+where not exists (select trend.year_=trendline.year_ and trend.month_=trendline.month_)
+	
+update trend
+set batches= select(count(batchid)) from trendline group by year_ and month_
+	
+update trend
+set batches=select(avg(batches)) over (order by month_ and year_ rows between all preceding and current row) from trend ]]></db:sql>
+				</db:execute-script>
+				<logger level="INFO" doc:name="Logger" doc:id="16fa4367-5184-408e-82da-4b90b5476171" />
+			</when>
+			<otherwise >
+				<ee:transform doc:name="Transform Message" doc:id="cbbc8131-7c85-4924-a86c-99dac1fc6774" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+"What? No new batches?"
+]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="Logger" doc:id="471da5fa-0013-4a5d-96af-9561347db002" />
+			</otherwise>
+		</choice>
+	</flow>
+	<flow name="Get-batches" doc:id="cc059fac-60b7-4528-a5a6-9b8a969a4343" >
+		<training-mastersapi:get-batches-qc-version doc:name="Get batches (qc version)" doc:id="eb559b27-f17d-4690-bc13-221bb81f04c5" />
+		<ee:transform doc:name="Transform Message" doc:id="1804044b-24ba-4abc-b883-94be6e9a3f90">
+			<ee:message>
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+{
+	startYear: payload.StartDate[0-3] as Number,
+	startMonth: payload.StartDate[5-6] as Number,
+	endYear: payload.EndDate[0-3] as Number,
+	endMonth: payload.EndDate as Number,
+	batchId: payload.BatchId
+	
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="560e2922-b647-4b21-867c-0e4382c13c7e" />
+	</flow>
+</mule>
