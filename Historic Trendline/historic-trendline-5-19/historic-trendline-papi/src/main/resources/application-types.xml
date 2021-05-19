@@ -1,0 +1,22 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<types:mule xmlns:types="http://www.mulesoft.org/schema/mule/types">
+  <types:catalog>
+    <types:type name="dataoutput" format="json">
+      <types:shape format="weave" example="api/Examples/datatype.json"><![CDATA[%dw 2.0
+
+type dataoutput = Array<{|  year: Number {"typeId": "int"},   month: Number {"typeId": "int"},   batches: Number {"typeId": "int"},   rolling_average: Number {"typeId": "double"}|}> {"example": "[{\\\"year\\\":2021,\\\"month\\\":2,\\\"batches\\\":4000,\\\"rolling_average\\\":9.3333333}]"}
+
+]]></types:shape>
+    </types:type>
+  </types:catalog>
+  <types:enrichment select="#989545cd-4196-4125-b67b-887b88b1517b"/>
+  <types:enrichment select="#6dca9148-bb23-49ab-9404-ef4680844146">
+    <types:processor-declaration>
+      <types:output-event>
+        <types:message>
+          <types:payload type="dataoutput"/>
+        </types:message>
+      </types:output-event>
+    </types:processor-declaration>
+  </types:enrichment>
+</types:mule>

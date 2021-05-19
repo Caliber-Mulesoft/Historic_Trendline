@@ -1,0 +1,4 @@
+aws:
+  url: "jdbc:postgresql://database-1.c9aueb8kcosc.us-east-2.rds.amazonaws.com:5432/postgres"
+  user: "postgres"
+  password: "Donkeykong6"
